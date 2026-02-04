@@ -57,7 +57,9 @@ class SendTransactionViewModel @Inject constructor(
     }
 
     private fun isValidAddress(address: String): Boolean {
-        return address.matches(Regex("^0x[a-fA-F0-9]{40}$"))
+        // Standard Ethereum address regex
+        val trimmed = address.trim()
+        return trimmed.isNotBlank() && trimmed.matches(Regex("^0x[a-fA-F0-9]{40}$"))
     }
 
     private fun isValidAmount(amount: String): Boolean {

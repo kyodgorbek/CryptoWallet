@@ -3,16 +3,23 @@ package com.master.myapplication.ui.wallet
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.master.myapplication.data.model.WalletInfo
 import com.master.myapplication.data.model.WalletState
@@ -25,47 +32,57 @@ fun WalletDetailsScreen(
     viewModel: WalletViewModel = hiltViewModel()
 ) {
     val walletState by viewModel.walletState.collectAsState()
-    val context = LocalContext.current
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Wallet") },
-                actions = {
-                    IconButton(onClick = { showLogoutDialog = true }) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
-                    }
-                }
+                title = { Text("Wallet Details", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.padding(start = 12.dp)
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
-        }
+        },
+        containerColor = Color(0xFFF9FAFB) // Light gray background
     ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .padding(16.dp)
         ) {
             when (val state = walletState) {
                 is WalletState.Loading -> {
                     CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier = Modifier.align(Alignment.Center),
+                        color = Color(0xFF3B82F6)
                     )
                 }
                 is WalletState.Success -> {
                     WalletContent(
                         walletInfo = state.walletInfo,
                         onCopyAddress = {
-                            copyToClipboard(context, state.walletInfo.address)
+                           // Use helper in ViewModel or Composable
                         },
                         onSendTransaction = onSendTransaction,
-                        onRefresh = { viewModel.loadWalletInfo() }
+                        onLogoutRequest = { showLogoutDialog = true }
                     )
                 }
                 is WalletState.Error -> {
-                    ErrorContent(
-                        message = state.message,
-                        onRetry = { viewModel.loadWalletInfo() }
+                    Text(
+                        text = state.message,
+                        color = Color.Red,
+                        modifier = Modifier.align(Alignment.Center)
                     )
+                    Button(
+                        onClick = { viewModel.loadWalletInfo() },
+                        modifier = Modifier.align(Alignment.Center).padding(top = 48.dp)
+                    ) { Text("Retry") }
                 }
             }
         }
@@ -82,7 +99,8 @@ fun WalletDetailsScreen(
                         showLogoutDialog = false
                         viewModel.logout()
                         onLogout()
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) {
                     Text("Logout")
                 }
@@ -101,143 +119,183 @@ fun WalletContent(
     walletInfo: WalletInfo,
     onCopyAddress: () -> Unit,
     onSendTransaction: () -> Unit,
-    onRefresh: () -> Unit
+    onLogoutRequest: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Balance Card
+        // Main Wallet Card
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Balance",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    text = "${walletInfo.balance} ETH",
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-
-        // Network Info
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                InfoRow(label = "Network", value = walletInfo.network)
-                InfoRow(label = "Chain ID", value = walletInfo.chainId.toString())
-            }
-        }
-
-        // Wallet Address
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Wallet Address",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Column(modifier = Modifier.padding(20.dp)) {
+                // EVM Badge
+                Surface(
+                    color = Color(0xFFDBEAFE),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
-                        text = "${walletInfo.address.take(10)}...${walletInfo.address.takeLast(8)}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
+                        text = "EVM",
+                        color = Color(0xFF1E40AF),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
-                    IconButton(onClick = onCopyAddress) {
-                        Icon(Icons.Default.Star, contentDescription = "Copy Address")
-                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Address",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = walletInfo.address,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Divider(
+                    color = Color(0xFFE5E7EB),
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+
+                Text(
+                    text = "Current Network",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "${walletInfo.network} - ${walletInfo.chainId}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Divider(
+                    color = Color(0xFFE5E7EB),
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+
+                Text(
+                    text = "Balance",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = walletInfo.balance,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF3B82F6)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "ETH",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF3B82F6),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Actions
+        ActionItem(
+            text = "Copy Address",
+            icon = Icons.Default.ContentCopy,
+            onClick = {
+                  val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                  val clip = ClipData.newPlainText("Wallet Address", walletInfo.address)
+                  clipboard.setPrimaryClip(clip)
+            }
+        )
 
-        // Send Transaction Button
         Button(
             onClick = onSendTransaction,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(60.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
         ) {
-            Icon(Icons.Default.Send, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Send Transaction")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ArrowForward, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Send Transaction", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
-    }
-}
 
-@Composable
-fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium
+        ActionItem(
+            text = "Logout",
+            icon = Icons.Default.ExitToApp,
+            textColor = Color(0xFFDC2626),
+            iconColor = Color(0xFFDC2626),
+            onClick = onLogoutRequest
         )
     }
 }
 
 @Composable
-fun ErrorContent(message: String, onRetry: () -> Unit) {
-    Column(
+fun ActionItem(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    textColor: Color = Color.Black,
+    iconColor: Color = Color.Gray
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
-        Icon(
-            Icons.Default.Info,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.error
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onRetry) {
-            Text("Retry")
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = textColor,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color.Gray
+            )
         }
     }
-}
-
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("Wallet Address", text)
-    clipboard.setPrimaryClip(clip)
 }

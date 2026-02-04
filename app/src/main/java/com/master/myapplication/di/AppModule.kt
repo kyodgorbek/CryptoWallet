@@ -19,6 +19,6 @@ object AppModule {
     fun provideDynamicRepository(
         @ApplicationContext context: Context
     ): DynamicRepository {
-        return Web3RepositoryImpl(context)
+        return com.master.myapplication.data.repository.DynamicRepositoryImpl(context)
     }
 }
