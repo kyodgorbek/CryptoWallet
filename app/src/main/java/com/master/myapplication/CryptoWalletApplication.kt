@@ -7,5 +7,6 @@ import dagger.hilt.android.HiltAndroidApp
 class CryptoWalletApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+
     }
 }

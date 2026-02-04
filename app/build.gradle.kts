@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false
 }
 
 android {
@@ -15,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.master.myapplication"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -76,7 +77,7 @@ dependencies {
 
     // Desugaring (Java 17 APIs)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
-
+    implementation(files("libs/dynamic-sdk-android.aar"))
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -93,7 +94,28 @@ dependencies {
     // Compose tooling
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Secure storage - DataStore + Tink (modern, future-proof)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("com.google.crypto.tink:tink-android:1.15.0")
+
+    // QR Code generation
+    implementation("com.google.zxing:core:3.5.2")
+
+    // Android WebView
+    implementation("androidx.webkit:webkit:1.8.0")
+
+    // HTTP client
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Custom Tabs for authentication
+    implementation("androidx.browser:browser:1.7.0")
+
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("com.google.android.gms:play-services-base:18.5.0")
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -1,6 +1,7 @@
 package com.master.myapplication.data.repository
 
 import android.content.Context
+import com.dynamic.sdk.android.DynamicSDK
 import com.master.myapplication.data.model.TransactionRequest
 import com.master.myapplication.data.model.TransactionResult
 import com.master.myapplication.data.model.WalletInfo
@@ -18,7 +19,7 @@ import javax.inject.Singleton
 class DynamicRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : DynamicRepository {
-
+    private val sdk = DynamicSDK.getInstance()
     private val _isAuthenticated = MutableStateFlow(false)
     private var currentWallet: String? = null
 
@@ -32,6 +33,7 @@ class DynamicRepositoryImpl @Inject constructor(
 
     override suspend fun sendOtp(email: String): Result<Unit> {
         return try {
+            sdk.ui.showAuth()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
