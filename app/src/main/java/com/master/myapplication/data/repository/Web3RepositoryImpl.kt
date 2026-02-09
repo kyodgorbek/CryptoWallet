@@ -108,6 +108,14 @@ class Web3RepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun switchNetwork(chainId: Long): Result<Unit> {
+        return try {
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun sendTransaction(request: TransactionRequest): Result<TransactionResult> = withContext(Dispatchers.IO) {
         return@withContext try {
             val currentCredentials = credentials 

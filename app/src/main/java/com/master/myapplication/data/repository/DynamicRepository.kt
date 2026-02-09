@@ -11,6 +11,8 @@ interface DynamicRepository {
     suspend fun verifyOtp(code: String): Result<Unit>
     fun isAuthenticatedFlow(): Flow<Boolean>
     suspend fun getWalletInfo(): Result<WalletInfo>
+
+    suspend fun switchNetwork(chainId: Long): Result<Unit>
     suspend fun sendTransaction(request: TransactionRequest): Result<TransactionResult>
     suspend fun logout()
 }
