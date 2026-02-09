@@ -20,28 +20,46 @@ class DynamicRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : DynamicRepository {
 
-    private val sdk = DynamicSDK.getInstance()
+    private val sdk get() = DynamicSDK.getInstance()
     private val _authState = MutableStateFlow(false)
 
     override suspend fun initializeSdk() {
         // SDK already initialized in MainActivity
     }
 
-    override suspend fun sendOtp(email: String): Result<Unit> {
-        return try {
-            sdk.auth.email.sendOTP(email)
+    override suspend fun sendOtp(email: String): Result<Unit> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        return@withContext try {
+            android.util.Log.d("DynamicRepository", "Sending OTP to $email")
+            // Add a timeout of 15 seconds to prevent indefinite loading
+            kotlinx.coroutines.withTimeout(15000L) {
+                sdk.auth.email.sendOTP(email)
+            }
+            android.util.Log.d("DynamicRepository", "OTP sent successfully")
             Result.success(Unit)
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            android.util.Log.e("DynamicRepository", "OTP send timed out")
+            Result.failure(Exception("Request timed out. Please check your connection and try again."))
         } catch (e: Exception) {
+            android.util.Log.e("DynamicRepository", "Error sending OTP", e)
             Result.failure(e)
         }
     }
 
-    override suspend fun verifyOtp(code: String): Result<Unit> {
-        return try {
-            sdk.auth.email.verifyOTP(code)
+    override suspend fun verifyOtp(code: String): Result<Unit> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        return@withContext try {
+            android.util.Log.d("DynamicRepository", "Verifying OTP code: $code")
+            // Add a timeout of 15 seconds to prevent indefinite loading
+            kotlinx.coroutines.withTimeout(15000L) {
+                sdk.auth.email.verifyOTP(code)
+            }
             _authState.value = true
+            android.util.Log.d("DynamicRepository", "OTP verification successful")
             Result.success(Unit)
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            android.util.Log.e("DynamicRepository", "OTP verification timed out")
+            Result.failure(Exception("Verification timed out. Please try again."))
         } catch (e: Exception) {
+            android.util.Log.e("DynamicRepository", "Error verifying OTP", e)
             Result.failure(e)
         }
     }

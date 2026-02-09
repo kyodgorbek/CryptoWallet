@@ -21,12 +21,13 @@ class MainActivity : ComponentActivity() {
         val props = ClientProps(
             environmentId = "3e219b76-dcf1-40ab-aad6-652c4dfab4cc",
             appLogoUrl = "https://demo.dynamic.xyz/favicon-32x32.png",
-            appName = "Dynamic Android Demo",
-            redirectUrl = "dynamicandroiddemo://",
+            appName = "Crypto Wallet",
+            redirectUrl = "cryptowallet://",
             appOrigin = "https://demo.dynamic.xyz",
             logLevel = LoggerLevel.DEBUG,
         )
         DynamicSDK.initialize(props, applicationContext, this)
+        android.util.Log.d("MainActivity", "Dynamic SDK initialized")
 
         setContent {
             CryptoWalletTheme {
