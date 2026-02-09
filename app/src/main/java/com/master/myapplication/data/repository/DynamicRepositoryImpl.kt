@@ -68,10 +68,17 @@ class DynamicRepositoryImpl @Inject constructor(
         return _authState.asStateFlow()
     }
 
-    override suspend fun getWalletInfo(): Result<WalletInfo> {
-        return try {
-            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
-                ?: throw Exception("No EVM wallet linked")
+    override suspend fun getWalletInfo(): Result<WalletInfo> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        return@withContext try {
+            val wallets = sdk.wallets.userWallets
+            android.util.Log.d("DynamicRepository", "Available wallets: ${wallets.size}")
+            wallets.forEach { 
+                android.util.Log.d("DynamicRepository", "Wallet: chain=${it.chain}, address=${it.address}")
+            }
+
+            val wallet = wallets.firstOrNull { 
+                it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM" || it.chain.uppercase() == "FLOW" 
+            } ?: throw Exception("No EVM wallet linked. Found chains: ${wallets.map { it.chain }}")
 
             val balance = sdk.wallets.getBalance(wallet) ?: "0"
             
