@@ -36,6 +36,7 @@ fun WalletDetailsScreen(
     val walletState by viewModel.walletState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -78,7 +79,10 @@ fun WalletDetailsScreen(
                     WalletContent(
                         walletInfo = state.walletInfo,
                         onCopyAddress = {
-                           // Use helper in ViewModel or Composable
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("Wallet Address", state.walletInfo.address)
+                            clipboard.setPrimaryClip(clip)
+                            android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onSendTransaction = onSendTransaction,
                         onLogoutRequest = { showLogoutDialog = true },
@@ -135,8 +139,6 @@ fun WalletContent(
     onLogoutRequest: () -> Unit,
     onSwitchNetwork: (Long) -> Unit
 ) {
-    val context = LocalContext.current
-    
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -169,9 +171,9 @@ fun WalletContent(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Text(
                     text = walletInfo.address,
                     style = MaterialTheme.typography.bodyLarge.copy(
@@ -197,9 +199,9 @@ fun WalletContent(
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.Gray
                         )
-                        
+
                         Spacer(modifier = Modifier.height(4.dp))
-                        
+
                         Text(
                             text = "${walletInfo.network} - ${walletInfo.chainId}",
                             style = MaterialTheme.typography.bodyLarge,
@@ -230,9 +232,9 @@ fun WalletContent(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = walletInfo.balance,
@@ -258,11 +260,7 @@ fun WalletContent(
         ActionItem(
             text = "Copy Address",
             icon = Icons.Default.ContentCopy,
-            onClick = {
-                  val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                  val clip = ClipData.newPlainText("Wallet Address", walletInfo.address)
-                  clipboard.setPrimaryClip(clip)
-            }
+            onClick = onCopyAddress
         )
 
         Spacer(modifier = Modifier.height(8.dp))
