@@ -76,12 +76,32 @@ class DynamicRepositoryImpl @Inject constructor(
     override suspend fun getWalletInfo(): Result<WalletInfo> = withContext(Dispatchers.IO) {
         return@withContext try {
             Log.d(TAG, "Fetching wallet info...")
-            val wallet = withTimeout(10000L) {
-                sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
+            val wallets = withTimeout(10000L) {
+                sdk.wallets.userWallets
+            }
+            
+            val wallet = wallets.firstOrNull { 
+                it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
             } ?: throw Exception("No EVM wallet linked")
             
+            // Try to get actual chainId from the wallet if possible
+            val detectedChainId = try {
+                val field = wallet.javaClass.getDeclaredField("chainId")
+                field.isAccessible = true
+                (field.get(wallet) as? Number)?.toLong() ?: currentChainId
+            } catch (e: Exception) {
+                try {
+                    val method = wallet.javaClass.getMethod("getChainId")
+                    (method.invoke(wallet) as? Number)?.toLong() ?: currentChainId
+                } catch (e2: Exception) {
+                    currentChainId
+                }
+            }
+            
+            Log.d(TAG, "Detected Chain ID from wallet: $detectedChainId")
+
             val balance = try {
-                withTimeout(10000L) {
+                withTimeout(15000L) {
                     sdk.wallets.getBalance(wallet)
                 } ?: "0"
             } catch (e: Exception) {
@@ -89,11 +109,17 @@ class DynamicRepositoryImpl @Inject constructor(
                 "0.00"
             }
 
+            val networkName = when(detectedChainId) {
+                1L -> "Ethereum Mainnet"
+                11155111L -> "Sepolia"
+                else -> "Network $detectedChainId"
+            }
+
             Result.success(WalletInfo(
                 address = wallet.address,
                 balance = balance,
-                network = currentNetworkName,
-                chainId = currentChainId
+                network = networkName,
+                chainId = detectedChainId
             ))
         } catch (e: Exception) {
             Log.e(TAG, "Error in getWalletInfo", e)

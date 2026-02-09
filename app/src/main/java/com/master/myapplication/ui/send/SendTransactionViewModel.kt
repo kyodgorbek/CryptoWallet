@@ -20,6 +20,21 @@ class SendTransactionViewModel @Inject constructor(
     private val _transactionState = MutableStateFlow<TransactionState>(TransactionState.Idle)
     val transactionState: StateFlow<TransactionState> = _transactionState.asStateFlow()
 
+    private val _userAddress = MutableStateFlow("")
+    val userAddress: StateFlow<String> = _userAddress.asStateFlow()
+
+    init {
+        loadUserAddress()
+    }
+
+    private fun loadUserAddress() {
+        viewModelScope.launch {
+            repository.getWalletInfo().onSuccess { info ->
+                _userAddress.value = info.address
+            }
+        }
+    }
+
     fun sendTransaction(recipientAddress: String, amount: String) {
         val cleanAddress = recipientAddress.trim()
         val cleanAmount = amount.trim().replace(",", ".")

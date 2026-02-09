@@ -29,6 +29,7 @@ fun SendTransactionScreen(
     viewModel: SendTransactionViewModel = hiltViewModel()
 ) {
     val transactionState by viewModel.transactionState.collectAsState()
+    val userAddress by viewModel.userAddress.collectAsState()
     var recipientAddress by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
 
@@ -65,9 +66,9 @@ fun SendTransactionScreen(
                     )
                 }
                 else -> {
-                    // Show inputs for Idle, Loading, and Error (with error message)
                     TransactionInputContent(
                         recipientAddress = recipientAddress,
+                        userAddress = userAddress,
                         onRecipientChange = { 
                             recipientAddress = it
                             viewModel.resetTransactionState()
@@ -90,6 +91,7 @@ fun SendTransactionScreen(
 @Composable
 fun TransactionInputContent(
     recipientAddress: String,
+    userAddress: String,
     onRecipientChange: (String) -> Unit,
     amount: String,
     onAmountChange: (String) -> Unit,
@@ -101,24 +103,64 @@ fun TransactionInputContent(
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         
         if (errorMessage != null) {
-            Text(
-                text = errorMessage,
-                color = Color.Red,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp))
-                    .padding(12.dp)
-            )
+            Surface(
+                color = Color(0xFFFEF2F2),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null, tint = Color.Red, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = Color.Red,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
         }
 
         // Recipient Input
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Recipient Address",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Recipient Address",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                // Demo/Helpful shortcuts
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (userAddress.isNotBlank()) {
+                        AssistChip(
+                            onClick = { onRecipientChange(userAddress) },
+                            label = { Text("My Address", fontSize = 11.sp) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = Color(0xFFEFF6FF),
+                                labelColor = Color(0xFF2563EB)
+                            ),
+                            border = null
+                        )
+                    }
+                    AssistChip(
+                        onClick = { onRecipientChange("0x742d35Cc6634C0532925a3b844Bc454e4438f44e") },
+                        label = { Text("Demo", fontSize = 11.sp) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = Color(0xFFF3F4F6),
+                            labelColor = Color(0xFF4B5563)
+                        ),
+                        border = null
+                    )
+                }
+            }
+            
             OutlinedTextField(
                 value = recipientAddress,
                 onValueChange = onRecipientChange,
@@ -130,7 +172,7 @@ fun TransactionInputContent(
                     unfocusedContainerColor = Color(0xFFF9FAFB),
                     focusedContainerColor = Color.White
                 ),
-                placeholder = { Text("0x followed by 40 hex chars") },
+                placeholder = { Text("0x...", color = Color.LightGray) },
                 trailingIcon = {
                     IconButton(onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -139,16 +181,17 @@ fun TransactionInputContent(
                             onRecipientChange(data)
                         }
                     }) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste")
+                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste", tint = Color.Gray)
                     }
                 },
-                enabled = !isLoading
+                enabled = !isLoading,
+                singleLine = true
             )
         }
 
         // Amount Input
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
+             Text(
                 "Amount (ETH)",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
@@ -164,9 +207,12 @@ fun TransactionInputContent(
                     unfocusedContainerColor = Color(0xFFF9FAFB),
                     focusedContainerColor = Color.White
                 ),
-                placeholder = { Text("0.001") },
+                placeholder = { Text("0.001", color = Color.LightGray) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                enabled = !isLoading
+                enabled = !isLoading,
+                trailingIcon = {
+                    Text("ETH", color = Color.Gray, modifier = Modifier.padding(end = 12.dp), fontWeight = FontWeight.Bold)
+                }
             )
         }
 
@@ -176,8 +222,8 @@ fun TransactionInputContent(
             onClick = onSend,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(12.dp),
+                .height(60.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
             enabled = !isLoading
         ) {
