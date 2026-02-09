@@ -100,13 +100,26 @@ class DynamicRepositoryImpl @Inject constructor(
             
             Log.d(TAG, "Detected Chain ID from wallet: $detectedChainId")
 
-            val balance = try {
-                withTimeout(15000L) {
-                    sdk.wallets.getBalance(wallet)
-                } ?: "0"
-            } catch (e: Exception) {
-                Log.e(TAG, "Error getting balance", e)
-                "0.00"
+            var balance = "0.00"
+            var retryCount = 0
+            val maxRetries = 3
+            
+            while (retryCount < maxRetries) {
+                try {
+                    val result = withTimeout(15000L) {
+                        sdk.wallets.getBalance(wallet)
+                    }
+                    if (result != null) {
+                        balance = result
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error getting balance (attempt ${retryCount + 1})", e)
+                    retryCount++
+                    if (retryCount < maxRetries) {
+                        kotlinx.coroutines.delay(2000L) // Wait 2 seconds before retry
+                    }
+                }
             }
 
             val networkName = when(detectedChainId) {

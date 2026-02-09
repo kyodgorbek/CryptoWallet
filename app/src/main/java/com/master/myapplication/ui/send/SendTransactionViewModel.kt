@@ -62,7 +62,7 @@ class SendTransactionViewModel @Inject constructor(
 
         viewModelScope.launch {
             _transactionState.value = TransactionState.Loading
-            
+
             val request = TransactionRequest(
                 recipientAddress = if (cleanAddress.startsWith("0x")) cleanAddress else "0x$cleanAddress",
                 amount = cleanAmount
@@ -71,6 +71,7 @@ class SendTransactionViewModel @Inject constructor(
             repository.sendTransaction(request)
                 .onSuccess { result ->
                     _transactionState.value = TransactionState.Success(result)
+
                 }
                 .onFailure { error ->
                     _transactionState.value = TransactionState.Error(
