@@ -79,6 +79,7 @@ fun WalletDetailsScreen(
                     WalletContent(
                         walletInfo = state.walletInfo,
                         onCopyAddress = {
+
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Wallet Address", state.walletInfo.address)
                             clipboard.setPrimaryClip(clip)
@@ -139,6 +140,8 @@ fun WalletContent(
     onLogoutRequest: () -> Unit,
     onSwitchNetwork: (Long) -> Unit
 ) {
+    val context = LocalContext.current
+
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
