@@ -30,8 +30,8 @@ fun SendTransactionScreen(
 ) {
     val transactionState by viewModel.transactionState.collectAsState()
     val userAddress by viewModel.userAddress.collectAsState()
-    var recipientAddress by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
+    var recipientAddress by remember { mutableStateOf("0x742d35Cc6634C0532925a3b844Bc454e4438f44e") } // Default test address
+    var amount by remember { mutableStateOf("0.001") } // Default test amount
 
     Scaffold(
         topBar = {

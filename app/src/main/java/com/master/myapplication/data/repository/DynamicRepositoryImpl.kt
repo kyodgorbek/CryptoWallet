@@ -76,6 +76,10 @@ class DynamicRepositoryImpl @Inject constructor(
     override suspend fun getWalletInfo(): Result<WalletInfo> = withContext(Dispatchers.IO) {
         return@withContext try {
             Log.d(TAG, "Fetching wallet info...")
+            
+            // Give the SDK a moment to sync if this is called immediately after login or switch
+            kotlinx.coroutines.delay(500L)
+
             val wallets = withTimeout(10000L) {
                 sdk.wallets.userWallets
             }
@@ -84,7 +88,6 @@ class DynamicRepositoryImpl @Inject constructor(
                 it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
             } ?: throw Exception("No EVM wallet linked")
             
-            // Try to get actual chainId from the wallet if possible
             val detectedChainId = try {
                 val field = wallet.javaClass.getDeclaredField("chainId")
                 field.isAccessible = true
@@ -102,25 +105,33 @@ class DynamicRepositoryImpl @Inject constructor(
 
             var balance = "0.00"
             var retryCount = 0
-            val maxRetries = 3
+            val maxRetries = 5
+            var lastError: Exception? = null
             
             while (retryCount < maxRetries) {
                 try {
-                    val result = withTimeout(15000L) {
+                    val result = withTimeout(20000L) {
                         sdk.wallets.getBalance(wallet)
                     }
                     if (result != null) {
                         balance = result
+                        Log.d(TAG, "Balance fetched successfully: $balance")
                         break
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error getting balance (attempt ${retryCount + 1})", e)
+                    lastError = e
+                    Log.e(TAG, "Error getting balance (attempt ${retryCount + 1}/$maxRetries): ${e.message}")
                     retryCount++
                     if (retryCount < maxRetries) {
-                        kotlinx.coroutines.delay(2000L) // Wait 2 seconds before retry
+                        // Exponential backoff: 1s, 2s, 4s, 8s...
+                        val delayTime = (java.lang.Math.pow(2.0, retryCount.toDouble()) * 1000).toLong()
+                        kotlinx.coroutines.delay(delayTime)
                     }
                 }
             }
+            
+            // If all retries failed but we have a cached network name, we can still show the UI
+            // but we might want to know if it's a persistent failure.
 
             val networkName = when(detectedChainId) {
                 1L -> "Ethereum Mainnet"
@@ -135,7 +146,7 @@ class DynamicRepositoryImpl @Inject constructor(
                 chainId = detectedChainId
             ))
         } catch (e: Exception) {
-            Log.e(TAG, "Error in getWalletInfo", e)
+            Log.e(TAG, "Critical failure in getWalletInfo", e)
             Result.failure(e)
         }
     }
