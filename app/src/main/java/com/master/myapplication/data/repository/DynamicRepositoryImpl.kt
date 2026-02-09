@@ -2,6 +2,7 @@ package com.master.myapplication.data.repository
 
 import android.content.Context
 import com.dynamic.sdk.android.DynamicSDK
+import com.dynamic.sdk.android.Models.Network
 import com.master.myapplication.data.model.TransactionRequest
 import com.master.myapplication.data.model.TransactionResult
 import com.master.myapplication.data.model.WalletInfo
@@ -17,6 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.dynamic.sdk.android.Chains.EVM.EthereumTransaction
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 
 @Singleton
 class DynamicRepositoryImpl @Inject constructor(
@@ -25,6 +30,9 @@ class DynamicRepositoryImpl @Inject constructor(
 
     private val sdk get() = DynamicSDK.getInstance()
     private val _authState = MutableStateFlow(false)
+
+    private var currentChainId = 11155111L
+    private var currentNetworkName = "Sepolia"
 
     override suspend fun initializeSdk() {
         // SDK already initialized in MainActivity
@@ -69,6 +77,7 @@ class DynamicRepositoryImpl @Inject constructor(
     override fun isAuthenticatedFlow(): Flow<Boolean> {
         return _authState.asStateFlow()
     }
+
 
     override suspend fun getWalletInfo(): Result<WalletInfo> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         return@withContext try {
@@ -169,6 +178,7 @@ class DynamicRepositoryImpl @Inject constructor(
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             android.util.Log.e("DynamicRepository", "getWalletInfo timed out")
             Result.failure(Exception("Wallet loading timed out. Please check your connection."))
+
         } catch (e: Exception) {
             android.util.Log.e("DynamicRepository", "Error in getWalletInfo", e)
             Result.failure(e)
@@ -178,49 +188,29 @@ class DynamicRepositoryImpl @Inject constructor(
     override suspend fun switchNetwork(chainId: Long): Result<Unit> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         return@withContext try {
             kotlinx.coroutines.withTimeout(15000L) {
-                // Reverting to the SDK call that appeared in previous diffs
                 val wallet = sdk.wallets.userWallets.firstOrNull { 
                     it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
                 } ?: throw Exception("No EVM wallet found")
-                
-                // Use reflection to find the correct network enum constant at runtime
-                try {
-                    val networkClass = com.dynamic.sdk.android.Models.Network::class.java
-                    val searchName = if (chainId == 1L) "Ethereum" else "Sepolia"
-                    val enumConstants = networkClass.enumConstants
-                    
-                    val targetNetwork = enumConstants?.firstOrNull { 
-                        it.toString().contains(searchName, ignoreCase = true) 
-                    } as? com.dynamic.sdk.android.Models.Network
-                    
-                    if (targetNetwork != null) {
-                        android.util.Log.d("DynamicRepository", "Switching to network: $targetNetwork")
-                        sdk.wallets.switchNetwork(wallet, targetNetwork)
-                        // Wait a bit for the SDK to update its internal state
-                        kotlinx.coroutines.delay(2000L)
-                    } else {
-                        val availableNames = enumConstants?.map { it.toString() }
-                        android.util.Log.e("DynamicRepository", "Network $searchName not found. Available: $availableNames")
-                        
-                        // Try fallback by ID
-                        val byId = enumConstants?.firstOrNull { enumConstant ->
-                            try {
-                                val chainIdField = enumConstant.javaClass.getDeclaredField("chainId")
-                                chainIdField.isAccessible = true
-                                (chainIdField.get(enumConstant) as? Number)?.toLong() == chainId
-                            } catch (e: Exception) { false }
-                        } as? com.dynamic.sdk.android.Models.Network
-                        
-                        if (byId != null) {
-                            sdk.wallets.switchNetwork(wallet, byId)
-                            kotlinx.coroutines.delay(2000L)
-                        } else {
-                            throw Exception("Network not found in SDK. Target ID: $chainId")
-                        }
-                    }
-                } catch (e: Exception) {
-                    throw e
+
+                val genericNetwork = sdk.networks.evm.firstOrNull { gn ->
+                    gn.chainId.jsonPrimitive.longOrNull == chainId
+                } ?: throw Exception("Network with chainId $chainId not available")
+
+                val networkJson = buildJsonObject {
+                    put("chainId", chainId)
+                    put("networkId", chainId)
+                    genericNetwork.name?.let { put("name", it) }
+                    genericNetwork.chainName?.let { put("chainName", it) }
+                    genericNetwork.vanityName?.let { put("vanityName", it) }
                 }
+
+                sdk.wallets.switchNetwork(wallet, Network(networkJson))
+
+                currentChainId = chainId
+                currentNetworkName = genericNetwork.name ?: genericNetwork.vanityName ?: "Chain $chainId"
+                
+                // Wait a bit for the SDK to update its internal state
+                kotlinx.coroutines.delay(2000L)
             }
             Result.success(Unit)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
