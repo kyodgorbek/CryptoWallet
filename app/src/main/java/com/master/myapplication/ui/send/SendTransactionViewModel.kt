@@ -21,14 +21,27 @@ class SendTransactionViewModel @Inject constructor(
     val transactionState: StateFlow<TransactionState> = _transactionState.asStateFlow()
 
     fun sendTransaction(recipientAddress: String, amount: String) {
+        val cleanAddress = recipientAddress.trim()
+        val cleanAmount = amount.trim().replace(",", ".")
+
         // Validate inputs
-        if (!isValidAddress(recipientAddress)) {
-            _transactionState.value = TransactionState.Error("Invalid recipient address")
+        if (cleanAddress.isEmpty()) {
+            _transactionState.value = TransactionState.Error("Please enter a recipient address")
             return
         }
 
-        if (!isValidAmount(amount)) {
-            _transactionState.value = TransactionState.Error("Invalid amount")
+        if (!isValidAddress(cleanAddress)) {
+            _transactionState.value = TransactionState.Error("Invalid recipient address. Must be '0x' followed by 40 hex characters.")
+            return
+        }
+
+        if (cleanAmount.isEmpty()) {
+            _transactionState.value = TransactionState.Error("Please enter an amount")
+            return
+        }
+
+        if (!isValidAmount(cleanAmount)) {
+            _transactionState.value = TransactionState.Error("Invalid amount format")
             return
         }
 
@@ -36,8 +49,8 @@ class SendTransactionViewModel @Inject constructor(
             _transactionState.value = TransactionState.Loading
             
             val request = TransactionRequest(
-                recipientAddress = recipientAddress,
-                amount = amount
+                recipientAddress = if (cleanAddress.startsWith("0x")) cleanAddress else "0x$cleanAddress",
+                amount = cleanAmount
             )
 
             repository.sendTransaction(request)
@@ -57,9 +70,8 @@ class SendTransactionViewModel @Inject constructor(
     }
 
     private fun isValidAddress(address: String): Boolean {
-        // Standard Ethereum address regex
-        val trimmed = address.trim()
-        return trimmed.isNotBlank() && trimmed.matches(Regex("^0x[a-fA-F0-9]{40}$"))
+        val normalized = if (address.startsWith("0x", ignoreCase = true)) address.substring(2) else address
+        return normalized.matches(Regex("^[a-fA-F0-9]{40}$"))
     }
 
     private fun isValidAmount(amount: String): Boolean {

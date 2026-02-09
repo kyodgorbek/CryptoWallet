@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +34,7 @@ fun WalletDetailsScreen(
     viewModel: WalletViewModel = hiltViewModel()
 ) {
     val walletState by viewModel.walletState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -39,23 +42,31 @@ fun WalletDetailsScreen(
             TopAppBar(
                 title = { Text("Wallet Details", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         containerColor = Color(0xFFF9FAFB) // Light gray background
     ) { padding ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.loadWalletInfo(isRefreshing = true) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
             when (val state = walletState) {
                 is WalletState.Loading -> {
                     CircularProgressIndicator(
@@ -88,6 +99,7 @@ fun WalletDetailsScreen(
             }
         }
     }
+}
 
     if (showLogoutDialog) {
         AlertDialog(

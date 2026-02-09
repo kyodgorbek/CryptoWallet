@@ -93,7 +93,7 @@ class DynamicRepositoryImpl @Inject constructor(
                 } ?: throw Exception("No EVM wallet found. Available chains: ${wallets.map { it.chain }}")
 
                 // Try to get balance with a shorter timeout
-                val balance = try {
+                var balance = try {
                     kotlinx.coroutines.withTimeout(10000L) {
                         sdk.wallets.getBalance(wallet)
                     } ?: "0"
@@ -102,30 +102,61 @@ class DynamicRepositoryImpl @Inject constructor(
                     "0.00"
                 }
                 
-                // Get chain info
-                val chainId = try {
+                // Get initial chain info
+                var chainId = try {
                     val field = wallet.javaClass.getDeclaredField("chainId")
                     field.isAccessible = true
                     (field.get(wallet) as? Number)?.toLong() ?: 11155111L
                 } catch (e: Exception) {
-                    11155111L
+                    android.util.Log.d("DynamicRepository", "Could not find chainId field, trying methods...")
+                    try {
+                        val method = wallet.javaClass.getMethod("getChainId")
+                        (method.invoke(wallet) as? Number)?.toLong() ?: 11155111L
+                    } catch (e2: Exception) {
+                        11155111L
+                    }
                 }
+
+                android.util.Log.d("DynamicRepository", "Detected Chain ID: $chainId")
 
                 // Auto-switch to Sepolia if we are on Mainnet (as per task requirement)
                 if (chainId == 1L) {
-                    android.util.Log.d("DynamicRepository", "Auto-switching from Mainnet to Sepolia")
+                    android.util.Log.d("DynamicRepository", "Auto-switching from Mainnet to Sepolia...")
                     try {
-                        switchNetwork(11155111L)
-                        // Should we reload info? The caller will likely do it or we can just update the UI model
+                        val switchResult = switchNetwork(11155111L)
+                        if (switchResult.isSuccess) {
+                            android.util.Log.d("DynamicRepository", "Switch success, re-fetching info...")
+                            // Wait a bit and re-detect everything
+                            kotlinx.coroutines.delay(2000L)
+                            // Re-fetch wallets to get the updated state
+                            wallets = sdk.wallets.userWallets
+                            val updatedWallet = wallets.firstOrNull { 
+                                it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
+                            } ?: wallet
+                            
+                            // Re-fetch balance for the new network
+                            balance = try {
+                                kotlinx.coroutines.withTimeout(10000L) {
+                                    sdk.wallets.getBalance(updatedWallet)
+                                } ?: "0"
+                            } catch (e: Exception) {
+                                android.util.Log.e("DynamicRepository", "Error getting balance after switch", e)
+                                balance
+                            }
+                            
+                            chainId = 11155111L 
+                        }
                     } catch (e: Exception) {
                         android.util.Log.e("DynamicRepository", "Auto-switch failed", e)
                     }
                 }
 
+                android.util.Log.d("DynamicRepository", "Final Balance: $balance on Chain: $chainId")
+
                 val networkName = when(chainId) {
                     1L -> "Ethereum Mainnet"
                     11155111L -> "Sepolia"
-                    else -> "Unknown Network"
+                    else -> "Network ID: $chainId"
                 }
 
                 Result.success(WalletInfo(
@@ -233,7 +264,8 @@ class DynamicRepositoryImpl @Inject constructor(
 
     private fun convertEthToWei(amount: String): BigInteger {
         return try {
-            val decimalAmount = BigDecimal(amount)
+            val cleanAmount = amount.replace(",", ".")
+            val decimalAmount = BigDecimal(cleanAmount)
             val weiFactor = BigDecimal.TEN.pow(18)
             decimalAmount.multiply(weiFactor).toBigInteger()
         } catch (e: Exception) {

@@ -19,13 +19,21 @@ class WalletViewModel @Inject constructor(
     private val _walletState = MutableStateFlow<WalletState>(WalletState.Loading)
     val walletState: StateFlow<WalletState> = _walletState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
         loadWalletInfo()
     }
 
-    fun loadWalletInfo() {
+    fun loadWalletInfo(isRefreshing: Boolean = false) {
         viewModelScope.launch {
-            _walletState.value = WalletState.Loading
+            if (isRefreshing) {
+                _isRefreshing.value = true
+            } else {
+                _walletState.value = WalletState.Loading
+            }
+            
             repository.getWalletInfo()
                 .onSuccess { walletInfo ->
                     _walletState.value = WalletState.Success(walletInfo)
@@ -35,6 +43,7 @@ class WalletViewModel @Inject constructor(
                         error.message ?: "Failed to load wallet information"
                     )
                 }
+            _isRefreshing.value = false
         }
     }
 

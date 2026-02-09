@@ -97,6 +97,7 @@ fun TransactionInputContent(
     isLoading: Boolean = false,
     errorMessage: String? = null
 ) {
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         
         if (errorMessage != null) {
@@ -129,7 +130,18 @@ fun TransactionInputContent(
                     unfocusedContainerColor = Color(0xFFF9FAFB),
                     focusedContainerColor = Color.White
                 ),
-                placeholder = { Text("0x...") },
+                placeholder = { Text("0x followed by 40 hex chars") },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val data = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+                        if (data.isNotBlank()) {
+                            onRecipientChange(data)
+                        }
+                    }) {
+                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste")
+                    }
+                },
                 enabled = !isLoading
             )
         }
