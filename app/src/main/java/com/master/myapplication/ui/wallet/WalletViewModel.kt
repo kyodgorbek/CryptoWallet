@@ -58,19 +58,4 @@ class WalletViewModel @Inject constructor(
             repository.logout()
         }
     }
-
-    fun switchNetwork(chainId: Int) {
-        viewModelScope.launch {
-            _walletState.value = WalletState.Loading
-            repository.switchNetwork(chainId)
-                .onSuccess {
-                    loadWalletInfo()
-                }
-                .onFailure { error ->
-                    _walletState.value = WalletState.Error(
-                        error.message ?: "Failed to switch network"
-                    )
-                }
-        }
-    }
 }

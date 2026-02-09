@@ -265,16 +265,6 @@ fun WalletContent(
             onClick = { /* TODO */ }
         )
 
-        ActionItem(
-            text = "Switch Network",
-            icon = Icons.Default.SwapHoriz,
-            onClick = { 
-                // Toggle between Sepolia (11155111) and Ethereum Mainnet (1) for demo
-                val newChainId = if (walletInfo.chainId == 11155111L) 1 else 11155111
-                viewModel.switchNetwork(newChainId)
-            }
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(

@@ -88,11 +88,41 @@ class DynamicRepositoryImpl @Inject constructor(
 
     override suspend fun switchNetwork(chainId: Long): Result<Unit> {
         return try {
+            // Reverting to the SDK call that appeared in previous diffs, it's likely sdk.wallets
+            // but we need to ensure the correct signature.
             val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
                 ?: throw Exception("No EVM wallet found")
             
-            // Using the sdk.evm to switch network
-            sdk.evm.switchNetwork(chainId.toString(), wallet)
+            // Use reflection to find the correct network enum constant at runtime
+            // to avoid compilation errors if we guess the names wrong.
+            try {
+                val networkClass = com.dynamic.sdk.android.Models.Network::class.java
+                val searchName = if (chainId == 1L) "Ethereum" else "Sepolia"
+                val targetNetwork = networkClass.enumConstants?.firstOrNull { 
+                    it.toString().contains(searchName, ignoreCase = true) 
+                } as? com.dynamic.sdk.android.Models.Network
+                
+                if (targetNetwork != null) {
+                    sdk.wallets.switchNetwork(wallet, targetNetwork)
+                } else {
+                    // If we can't find it by name, try to find by chain ID if there's a property
+                    val byId = networkClass.enumConstants?.firstOrNull { enumConstant ->
+                        try {
+                            val chainIdField = enumConstant.javaClass.getDeclaredField("chainId")
+                            chainIdField.isAccessible = true
+                            (chainIdField.get(enumConstant) as? Number)?.toLong() == chainId
+                        } catch (e: Exception) { false }
+                    } as? com.dynamic.sdk.android.Models.Network
+                    
+                    if (byId != null) {
+                        sdk.wallets.switchNetwork(wallet, byId)
+                    } else {
+                        throw Exception("Network $searchName (ID: $chainId) not found in SDK")
+                    }
+                }
+            } catch (e: Exception) {
+                throw e
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
