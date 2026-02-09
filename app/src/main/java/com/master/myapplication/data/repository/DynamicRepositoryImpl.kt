@@ -77,15 +77,15 @@ class DynamicRepositoryImpl @Inject constructor(
         return@withContext try {
             Log.d(TAG, "Fetching wallet info...")
             
-            // Attempt to find the wallet with retries
-            val wallet = (0 until 5).firstNotNullOfOrNull { attempt ->
+            // Reduced to 3 attempts with shorter fixed delays to avoid long loading states
+            val wallet = (0 until 3).firstNotNullOfOrNull { attempt ->
                 if (attempt > 0) {
-                    Log.d(TAG, "Retrying to find wallet (attempt ${attempt + 1}/5)...")
-                    kotlinx.coroutines.delay(1000L * attempt)
+                    Log.d(TAG, "Quick retry for wallet (attempt ${attempt + 1}/3)...")
+                    kotlinx.coroutines.delay(500L) 
                 }
                 
                 val wallets = try {
-                    withTimeout(10000L) { sdk.wallets.userWallets }
+                    withTimeout(5000L) { sdk.wallets.userWallets }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error fetching userWallets: ${e.message}")
                     emptyList()
@@ -94,7 +94,7 @@ class DynamicRepositoryImpl @Inject constructor(
                 wallets.firstOrNull { 
                     it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
                 }
-            } ?: throw Exception("No EVM wallet found after several attempts. Please ensure your wallet is linked and try again.")
+            } ?: throw Exception("No EVM wallet found. If this persists, please try to log in again.")
 
             Log.d(TAG, "EVM wallet found: ${wallet.address}")
             
@@ -115,11 +115,11 @@ class DynamicRepositoryImpl @Inject constructor(
 
             var balance = "0.00"
             var retryCount = 0
-            val maxRetries = 5
+            val maxBalanceRetries = 3 // Reduced from 5
             
-            while (retryCount < maxRetries) {
+            while (retryCount < maxBalanceRetries) {
                 try {
-                    val result = withTimeout(20000L) {
+                    val result = withTimeout(15000L) {
                         sdk.wallets.getBalance(wallet)
                     }
                     if (result != null) {
@@ -128,11 +128,10 @@ class DynamicRepositoryImpl @Inject constructor(
                         break
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error getting balance (attempt ${retryCount + 1}/$maxRetries): ${e.message}")
+                    Log.e(TAG, "Error getting balance (attempt ${retryCount + 1}/$maxBalanceRetries): ${e.message}")
                     retryCount++
-                    if (retryCount < maxRetries) {
-                        val delayTime = (java.lang.Math.pow(2.0, retryCount.toDouble()) * 1000).toLong()
-                        kotlinx.coroutines.delay(delayTime)
+                    if (retryCount < maxBalanceRetries) {
+                        kotlinx.coroutines.delay(1000L * retryCount)
                     }
                 }
             }
@@ -157,33 +156,38 @@ class DynamicRepositoryImpl @Inject constructor(
 
     override suspend fun switchNetwork(chainId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {
-            Log.d(TAG, "Switching network to $chainId")
-            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
-                ?: throw Exception("No EVM wallet linked")
+            Log.d(TAG, "Switching network to chainId: $chainId")
+            
+            val wallets = sdk.wallets.userWallets
+            val wallet = wallets.firstOrNull { it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM" }
+                ?: throw Exception("No EVM wallet linked for switching")
 
-            val genericNetwork = sdk.networks.evm.firstOrNull { gn ->
+            val evmNetworks = sdk.networks.evm
+            Log.d(TAG, "Available EVM networks: ${evmNetworks.map { "${it.name}(${it.chainId})" }}")
+
+            val genericNetwork = evmNetworks.firstOrNull { gn ->
                 gn.chainId.jsonPrimitive.longOrNull == chainId
-            } ?: throw Exception("Network with chainId $chainId not available")
+            } ?: throw Exception("Network $chainId not found in SDK's available EVM networks. Please check Dynamic dashboard.")
 
             val networkJson = buildJsonObject {
                 put("chainId", chainId)
                 put("networkId", chainId)
+                put("id", chainId.toString())
                 genericNetwork.name?.let { put("name", it) }
                 genericNetwork.chainName?.let { put("chainName", it) }
                 genericNetwork.vanityName?.let { put("vanityName", it) }
             }
 
-            withTimeout(15000L) {
-                sdk.wallets.switchNetwork(wallet, Network(networkJson))
-            }
+            Log.d(TAG, "Requesting switch with JSON: $networkJson")
+            sdk.wallets.switchNetwork(wallet, Network(networkJson))
 
             currentChainId = chainId
             currentNetworkName = genericNetwork.name ?: genericNetwork.vanityName ?: "Chain $chainId"
 
-            Log.d(TAG, "Network switch success")
+            Log.d(TAG, "Network switch success reported by SDK")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error switching network", e)
+            Log.e(TAG, "Error switching network: ${e.message}", e)
             Result.failure(e)
         }
     }
