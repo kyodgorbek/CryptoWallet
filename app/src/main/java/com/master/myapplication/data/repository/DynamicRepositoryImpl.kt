@@ -14,6 +14,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.dynamic.sdk.android.Chains.EVM.EthereumTransaction
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 @Singleton
 class DynamicRepositoryImpl @Inject constructor(
@@ -154,28 +157,27 @@ class DynamicRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun sendTransaction(request: TransactionRequest): Result<TransactionResult> {
-        return try {
-            // NOTE: EthereumTransaction class import is unresolved in this environment. 
-            // The logic below is the intended implementation based on SDK docs.
-            /*
-            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
-                ?: throw Exception("No EVM wallet found")
+    override suspend fun sendTransaction(request: TransactionRequest): Result<TransactionResult> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val wallet = sdk.wallets.userWallets.firstOrNull { 
+                it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM"
+            } ?: throw Exception("No EVM wallet found")
 
             val transaction = EthereumTransaction(
                 from = wallet.address,
                 to = request.recipientAddress,
                 value = convertEthToWei(request.amount),
                 gas = BigInteger.valueOf(21000),
-                maxFeePerGas = BigInteger.valueOf(3000000000L), 
-                maxPriorityFeePerGas = BigInteger.valueOf(1500000000L) 
+                maxFeePerGas = BigInteger.valueOf(3000000000L), // 3 Gwei
+                maxPriorityFeePerGas = BigInteger.valueOf(1500000000L) // 1.5 Gwei
             )
 
+            android.util.Log.d("DynamicRepository", "Sending transaction: $request")
             val txHash = sdk.evm.sendTransaction(transaction, wallet)
+            android.util.Log.d("DynamicRepository", "Transaction sent. Hash: $txHash")
             Result.success(TransactionResult(txHash = txHash, success = true))
-            */
-            Result.failure(Exception("Send Transaction temporarily disabled due to build environment limits"))
         } catch (e: Exception) {
+            android.util.Log.e("DynamicRepository", "Error sending transaction", e)
             Result.failure(e)
         }
     }
@@ -185,11 +187,11 @@ class DynamicRepositoryImpl @Inject constructor(
         _authState.value = false
     }
 
-    private fun convertEthToWei(ethAmount: String): BigInteger {
+    private fun convertEthToWei(amount: String): BigInteger {
         return try {
-            val eth = BigDecimal(ethAmount)
-            val wei = eth.multiply(BigDecimal("1000000000000000000"))
-            wei.toBigInteger()
+            val decimalAmount = BigDecimal(amount)
+            val weiFactor = BigDecimal.TEN.pow(18)
+            decimalAmount.multiply(weiFactor).toBigInteger()
         } catch (e: Exception) {
             BigInteger.ZERO
         }

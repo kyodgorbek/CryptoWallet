@@ -253,18 +253,6 @@ fun WalletContent(
             }
         )
 
-        ActionItem(
-            text = "Sign Message",
-            icon = Icons.Default.Edit,
-            onClick = { /* TODO */ }
-        )
-
-        ActionItem(
-            text = "Set as Primary Wallet",
-            icon = Icons.Default.Star,
-            onClick = { /* TODO */ }
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(
