@@ -194,27 +194,72 @@ class DynamicRepositoryImpl @Inject constructor(
 
     override suspend fun sendTransaction(request: TransactionRequest): Result<TransactionResult> = withContext(Dispatchers.IO) {
         return@withContext try {
-            Log.d(TAG, "Sending transaction: $request")
-            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
-                ?: throw Exception("No EVM wallet found")
+            Log.d(TAG, "Preparing to send transaction: $request")
+            
+            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" || it.chain.uppercase() == "ETHEREUM" }
+                ?: throw Exception("No EVM wallet found. Please reconnect.")
+
+            // Verify current network context
+            val walletChainId = try {
+                val field = wallet.javaClass.getDeclaredField("chainId")
+                field.isAccessible = true
+                (field.get(wallet) as? Number)?.toLong()
+            } catch (e: Exception) {
+                try {
+                    val method = wallet.javaClass.getMethod("getChainId")
+                    (method.invoke(wallet) as? Number)?.toLong()
+                } catch (e2: Exception) {
+                    null
+                }
+            }
+
+            Log.d(TAG, "Transaction wallet address: ${wallet.address}, current chainId: $walletChainId, expected: $currentChainId")
+
+            // If chainId mismatch, attempt a quick switch
+            if (walletChainId != null && walletChainId != currentChainId) {
+                Log.w(TAG, "Network mismatch detected (Wallet: $walletChainId, App: $currentChainId). Attempting auto-switch...")
+                switchNetwork(currentChainId).getOrThrow()
+                // Wait a bit for SDK to catch up
+                kotlinx.coroutines.delay(1000L)
+            }
+
+            // Optional: Re-fetch balance to verify funds before attempting
+            val currentBalance = try {
+                sdk.wallets.getBalance(wallet) ?: "0"
+            } catch (e: Exception) {
+                "Unknown"
+            }
+            Log.d(TAG, "Verified balance for transaction: $currentBalance ETH")
 
             val transaction = EthereumTransaction(
                 from = wallet.address,
                 to = request.recipientAddress,
                 value = convertEthToWei(request.amount),
                 gas = BigInteger.valueOf(21000),
-                maxFeePerGas = BigInteger.valueOf(3000000000L), 
-                maxPriorityFeePerGas = BigInteger.valueOf(1500000000L) 
+                // Slightly higher priority fees for Sepolia reliability
+                maxFeePerGas = BigInteger.valueOf(5000000000L), // 5 gwei
+                maxPriorityFeePerGas = BigInteger.valueOf(2000000000L) // 2 gwei
             )
 
-            val txHash = withTimeout(30000L) {
+            Log.d(TAG, "Dispatching transaction to SDK...")
+            val txHash = withTimeout(45000L) {
                 sdk.evm.sendTransaction(transaction, wallet)
             }
-            Log.d(TAG, "Transaction sent. Hash: $txHash")
+            
+            Log.d(TAG, "Transaction broadcast successful. Hash: $txHash")
             Result.success(TransactionResult(txHash = txHash, success = true))
         } catch (e: Exception) {
-            Log.e(TAG, "Error sending transaction", e)
-            Result.failure(e)
+            Log.e(TAG, "Transaction failed", e)
+            val errorMessage = when {
+                e.message?.contains("insufficient funds", ignoreCase = true) == true -> {
+                    "Insufficient funds: You need more ETH on $currentNetworkName to cover the amount and gas fees."
+                }
+                e.message?.contains("user rejected", ignoreCase = true) == true -> {
+                    "Transaction cancelled by user"
+                }
+                else -> e.message ?: "An unexpected error occurred during transaction"
+            }
+            Result.failure(Exception(errorMessage))
         }
     }
 
