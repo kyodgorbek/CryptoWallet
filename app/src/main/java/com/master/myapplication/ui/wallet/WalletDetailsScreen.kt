@@ -70,7 +70,8 @@ fun WalletDetailsScreen(
                            // Use helper in ViewModel or Composable
                         },
                         onSendTransaction = onSendTransaction,
-                        onLogoutRequest = { showLogoutDialog = true }
+                        onLogoutRequest = { showLogoutDialog = true },
+                        onSwitchNetwork = { chainId -> viewModel.switchNetwork(chainId) }
                     )
                 }
                 is WalletState.Error -> {
@@ -119,7 +120,8 @@ fun WalletContent(
     walletInfo: WalletInfo,
     onCopyAddress: () -> Unit,
     onSendTransaction: () -> Unit,
-    onLogoutRequest: () -> Unit
+    onLogoutRequest: () -> Unit,
+    onSwitchNetwork: (Long) -> Unit
 ) {
     val context = LocalContext.current
     
@@ -172,20 +174,39 @@ fun WalletContent(
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
 
-                Text(
-                    text = "Current Network",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Text(
-                    text = "${walletInfo.network} - ${walletInfo.chainId}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Current Network",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = "${walletInfo.network} - ${walletInfo.chainId}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Network Switcher Button
+                    TextButton(
+                        onClick = {
+                            val targetChainId = if (walletInfo.chainId == 11155111L) 1L else 11155111L
+                            onSwitchNetwork(targetChainId)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF3B82F6))
+                    ) {
+                        Text("Switch")
+                    }
+                }
 
                 Divider(
                     color = Color(0xFFE5E7EB),
@@ -231,6 +252,30 @@ fun WalletContent(
                   clipboard.setPrimaryClip(clip)
             }
         )
+
+        ActionItem(
+            text = "Sign Message",
+            icon = Icons.Default.Edit,
+            onClick = { /* TODO */ }
+        )
+
+        ActionItem(
+            text = "Set as Primary Wallet",
+            icon = Icons.Default.Star,
+            onClick = { /* TODO */ }
+        )
+
+        ActionItem(
+            text = "Switch Network",
+            icon = Icons.Default.SwapHoriz,
+            onClick = { 
+                // Toggle between Sepolia (11155111) and Ethereum Mainnet (1) for demo
+                val newChainId = if (walletInfo.chainId == 11155111L) 1 else 11155111
+                viewModel.switchNetwork(newChainId)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = onSendTransaction,

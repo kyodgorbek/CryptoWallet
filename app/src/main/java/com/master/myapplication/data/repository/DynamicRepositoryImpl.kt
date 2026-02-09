@@ -56,14 +56,44 @@ class DynamicRepositoryImpl @Inject constructor(
                 ?: throw Exception("No EVM wallet linked")
 
             val balance = sdk.wallets.getBalance(wallet) ?: "0"
+            
+            // Try to get actual chainId and network name from the wallet object
+            // If the SDK version doesn't expose them directly, we fallback to defaults
+            val chainId = try {
+                // Accessing chainId if it exists on the wallet object
+                val field = wallet.javaClass.getDeclaredField("chainId")
+                field.isAccessible = true
+                (field.get(wallet) as? Number)?.toLong() ?: 11155111L
+            } catch (e: Exception) {
+                11155111L
+            }
+
+            val networkName = when(chainId) {
+                1L -> "Ethereum Mainnet"
+                11155111L -> "Sepolia"
+                else -> "Unknown Network"
+            }
 
             val walletInfo = WalletInfo(
                 address = wallet.address,
                 balance = balance,
-                network = "Sepolia", 
-                chainId = 11155111
+                network = networkName,
+                chainId = chainId
             )
             Result.success(walletInfo)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun switchNetwork(chainId: Long): Result<Unit> {
+        return try {
+            val wallet = sdk.wallets.userWallets.firstOrNull { it.chain.uppercase() == "EVM" }
+                ?: throw Exception("No EVM wallet found")
+            
+            // Using the sdk.evm to switch network
+            sdk.evm.switchNetwork(chainId.toString(), wallet)
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

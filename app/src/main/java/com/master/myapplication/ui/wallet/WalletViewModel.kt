@@ -38,9 +38,39 @@ class WalletViewModel @Inject constructor(
         }
     }
 
+    fun switchNetwork(chainId: Long) {
+        viewModelScope.launch {
+            _walletState.value = WalletState.Loading
+            repository.switchNetwork(chainId)
+                .onSuccess {
+                    loadWalletInfo()
+                }
+                .onFailure { error ->
+                    _walletState.value = WalletState.Error(
+                        error.message ?: "Failed to switch network"
+                    )
+                }
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             repository.logout()
+        }
+    }
+
+    fun switchNetwork(chainId: Int) {
+        viewModelScope.launch {
+            _walletState.value = WalletState.Loading
+            repository.switchNetwork(chainId)
+                .onSuccess {
+                    loadWalletInfo()
+                }
+                .onFailure { error ->
+                    _walletState.value = WalletState.Error(
+                        error.message ?: "Failed to switch network"
+                    )
+                }
         }
     }
 }

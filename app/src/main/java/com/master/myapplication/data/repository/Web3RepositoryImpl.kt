@@ -153,6 +153,20 @@ class Web3RepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun switchNetwork(chainId: Int): Result<Unit> {
+        return try {
+            // For Web3j implementation, we might need to recreate the Web3j instance with a new RPC URL
+            // For now, just return success if it's the same chain, or failure otherwise.
+            if (chainId == 11155111) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Network switching not fully implemented in Web3Repository"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun logout() {
         credentials = null
         privateKey = null
